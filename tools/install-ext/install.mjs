@@ -1,11 +1,14 @@
 /**
  * Install unpacked extensions into a Chrome profile via CDP Extensions.loadUnpacked.
- * Uses chrome-launcher --remote-debugging-pipe (works on Windows; Go ExtraFiles does not).
+ * Spawns Chrome with --remote-debugging-pipe and cwd set to the Chrome folder
+ * (required for bundled portable Chrome; chrome-launcher does not set cwd).
  *
  * Usage: node install.mjs <config.json>
  */
 import fs from "node:fs";
-import { launch } from "chrome-launcher";
+import path from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { Launcher } from "chrome-launcher";
 
 const configPath = process.argv[2];
 if (!configPath) {
@@ -13,24 +16,97 @@ if (!configPath) {
   process.exit(1);
 }
 
-/** @type {{ chrome: string, chromeArgs: string[], extensions: { id: string, name: string, path: string }[] }} */
+/** @type {{ chrome: string, chromeDir: string, logDir: string, chromeArgs: string[], extensions: { id: string, name: string, path: string }[] }} */
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
 if (!config.extensions?.length) {
   process.exit(0);
 }
 
-const chrome = await launch({
-  chromePath: config.chrome,
-  chromeFlags: config.chromeArgs,
-  ignoreDefaultFlags: true,
-  startingUrl: "about:blank",
+const logDir = config.logDir || config.chromeDir;
+fs.mkdirSync(logDir, { recursive: true });
+const outLog = path.join(logDir, "chrome-install-out.log");
+const errLog = path.join(logDir, "chrome-install-err.log");
+const outFd = fs.openSync(outLog, "a");
+const errFd = fs.openSync(errLog, "a");
+
+const baseFlags = Launcher.defaultFlags().filter((f) => f !== "--disable-extensions");
+const chromeFlags = [
+  ...baseFlags,
+  ...config.chromeArgs,
+  "--headless=new",
+  "--disable-gpu",
+  "--remote-debugging-pipe",
+  "--enable-unsafe-extension-debugging",
+  "about:blank",
+];
+
+const proc = spawn(config.chrome, chromeFlags, {
+  cwd: config.chromeDir,
+  stdio: ["ignore", outFd, errFd, "pipe", "pipe"],
+  env: process.env,
 });
 
-const pipes = chrome.remoteDebuggingPipes;
-if (!pipes) {
-  await chrome.kill();
-  throw new Error("remote debugging pipes unavailable");
+const pipes = {
+  incoming: proc.stdio[4],
+  outgoing: proc.stdio[3],
+};
+
+/** @type {Map<number, { resolve: (v: unknown) => void, reject: (e: Error) => void }>} */
+const pending = new Map();
+let buffer = "";
+let chromeExited = false;
+let exitCode = null;
+
+proc.on("exit", (code) => {
+  chromeExited = true;
+  exitCode = code;
+  for (const [, p] of pending) {
+    p.reject(chromeExitError());
+  }
+  pending.clear();
+});
+
+pipes.incoming.on("data", (chunk) => {
+  buffer += chunk;
+  let end;
+  while ((end = buffer.indexOf("\0")) !== -1) {
+    const raw = buffer.slice(0, end);
+    buffer = buffer.slice(end + 1);
+    let msg;
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!msg.id || !pending.has(msg.id)) {
+      continue;
+    }
+    const p = pending.get(msg.id);
+    pending.delete(msg.id);
+    if (msg.error) {
+      p.reject(new Error(msg.error.message));
+    } else {
+      p.resolve(msg.result);
+    }
+  }
+});
+
+function chromeExitError() {
+  let detail = "";
+  try {
+    detail = fs.readFileSync(errLog, "utf8").trim();
+  } catch {
+    // ignore
+  }
+  const tail = detail ? `\n${detail.slice(-4000)}` : "";
+  return new Error(`Chrome exited (code ${exitCode ?? "unknown"})${tail}`);
+}
+
+function assertChromeRunning() {
+  if (chromeExited) {
+    throw chromeExitError();
+  }
 }
 
 /**
@@ -38,57 +114,37 @@ if (!pipes) {
  * @param {Record<string, unknown>} [params]
  */
 function cdpCall(method, params = {}) {
+  assertChromeRunning();
   return new Promise((resolve, reject) => {
     const id = Math.floor(Math.random() * 1e9);
-    let buffer = "";
-
-    const onError = (err) => {
-      cleanup();
-      reject(err);
-    };
-    const onClose = () => {
-      cleanup();
-      reject(new Error(`pipe closed before ${method} response`));
-    };
-    const onData = (chunk) => {
-      buffer += chunk;
-      let end;
-      while ((end = buffer.indexOf("\0")) !== -1) {
-        const raw = buffer.slice(0, end);
-        buffer = buffer.slice(end + 1);
-        let msg;
-        try {
-          msg = JSON.parse(raw);
-        } catch {
-          continue;
-        }
-        if (msg.id !== id) {
-          continue;
-        }
-        cleanup();
-        if (msg.error) {
-          reject(new Error(`${method}: ${msg.error.message}`));
-          return;
-        }
-        resolve(msg.result);
+    pending.set(id, { resolve, reject });
+    pipes.outgoing.write(JSON.stringify({ id, method, params }) + "\0");
+    setTimeout(() => {
+      if (!pending.has(id)) {
         return;
       }
-    };
-
-    function cleanup() {
-      pipes.incoming.off("error", onError);
-      pipes.incoming.off("close", onClose);
-      pipes.incoming.off("data", onData);
-    }
-
-    pipes.incoming.on("error", onError);
-    pipes.incoming.on("close", onClose);
-    pipes.incoming.on("data", onData);
-    pipes.outgoing.write(JSON.stringify({ id, method, params }) + "\0");
+      pending.delete(id);
+      reject(new Error(`cdp ${method}: timed out`));
+    }, 90_000);
   });
 }
 
+async function killChrome() {
+  if (chromeExited) {
+    return;
+  }
+  if (process.platform === "win32") {
+    spawnSync(`taskkill /pid ${proc.pid} /T /F`, { shell: true, stdio: "ignore" });
+  } else {
+    proc.kill("SIGKILL");
+  }
+  await new Promise((r) => proc.on("exit", r));
+}
+
 try {
+  await new Promise((r) => setTimeout(r, 1500));
+  assertChromeRunning();
+
   await cdpCall("Browser.getVersion");
 
   for (const ext of config.extensions) {
@@ -103,6 +159,11 @@ try {
   }
 
   await new Promise((r) => setTimeout(r, 3000));
+} catch (err) {
+  console.error(err.message);
+  throw err;
 } finally {
-  await chrome.kill();
+  await killChrome();
+  fs.closeSync(outFd);
+  fs.closeSync(errFd);
 }

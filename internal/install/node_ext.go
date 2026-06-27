@@ -12,6 +12,8 @@ import (
 
 type nodeInstallConfig struct {
 	Chrome     string          `json:"chrome"`
+	ChromeDir  string          `json:"chromeDir"`
+	LogDir     string          `json:"logDir"`
 	ChromeArgs []string        `json:"chromeArgs"`
 	Extensions []nodeExtension `json:"extensions"`
 }
@@ -40,11 +42,7 @@ func InstallExtensionsViaNode(layout bundle.Layout) error {
 
 	args := layout.PortableFlags()
 	args = append(args,
-		"--headless=new",
 		"--disable-gpu",
-		"--remote-debugging-pipe",
-		"--enable-unsafe-extension-debugging",
-		"about:blank",
 	)
 
 	var exts []nodeExtension
@@ -79,6 +77,8 @@ func InstallExtensionsViaNode(layout bundle.Layout) error {
 
 	cfg := nodeInstallConfig{
 		Chrome:     browser,
+		ChromeDir:  filepath.Dir(browser),
+		LogDir:     layout.Data,
 		ChromeArgs: args,
 		Extensions: exts,
 	}
