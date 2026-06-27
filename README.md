@@ -27,12 +27,12 @@ Double-clicking `Chrome.exe`:
 3. Creates `Data/` if missing.
 4. Launches `Chrome/chrome.exe` with portable flags (`--user-data-dir`, cache dirs, offline-friendly options).
 
-Bundled extensions are **not** passed via `--load-extension` (removed in Chrome 137+). During packaging, `tools/package` installs them into `Data/Default/Extensions/` using Chrome DevTools Protocol (`Extensions.loadUnpacked` over `--remote-debugging-pipe`), the same mechanism as clicking "Load unpacked" in `chrome://extensions`.
+Bundled extensions are **not** passed via `--load-extension` (removed in Chrome 137+). During packaging, `tools/package` saves each CRX under `Extensions/{id}/extension.crx`, writes `Data/External Extensions/{id}.json`, then launches Chrome headless once so extensions are copied into `Data/Default/Extensions/`.
 
 | Build-time | Runtime |
 |------------|---------|
 | Download CRX → `Extensions/{id}/` | Extensions load from profile |
-| CDP install into `Data/` | No Web Store or `--load-extension` needed |
+| External Extensions JSON + headless warmup | No Web Store or `--load-extension` needed |
 
 Also disables sync, component update, background networking, Safe Browsing checks, and translate — suited for machines **without access to Google**.
 
@@ -57,7 +57,7 @@ cmd/chrome/              Entry point → portable.Run()
 internal/
   bundle/                Portable root, layout, Chrome CLI flags
   portable/              Runtime: launch browser
-  install/               Build-time: copy Chrome, CDP extension install, profile warmup
+  install/               Build-time: copy Chrome, external CRX install, profile warmup
   httpclient/            Shared User-Agent (genicon)
 tools/
   genicon/               Windows icon resources (.syso)

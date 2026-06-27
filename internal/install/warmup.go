@@ -12,9 +12,9 @@ import (
 
 const warmupTimeout = 90 * time.Second
 
-// WarmupProfile pre-initializes the profile and installs bundled extensions via CDP.
-// Chrome 137+ removed --load-extension; Extensions.loadUnpacked over
-// --remote-debugging-pipe persists extensions in the profile like "Load unpacked".
+// WarmupProfile pre-initializes the profile and installs bundled extensions.
+// Chrome 137+ removed --load-extension; extensions are registered as local
+// external CRX files and loaded into the profile on the first headless launch.
 func WarmupProfile(layout bundle.Layout) error {
 	if err := layout.EnsureDataDirs(); err != nil {
 		return err
@@ -28,15 +28,18 @@ func WarmupProfile(layout bundle.Layout) error {
 		return nil
 	}
 
-	if _, err := os.Stat(filepath.Join(layout.Data, "Default", "Preferences")); err != nil {
-		if err := bootstrapProfile(layout); err != nil {
-			return err
-		}
+	fmt.Println("Registering bundled extensions (external CRX)...")
+	if err := InstallExtensionsExternal(layout); err != nil {
+		return err
 	}
 
-	fmt.Println("Installing bundled extensions into profile (CDP)...")
-	if err := InstallExtensionsViaCDP(layout); err != nil {
+	fmt.Println("Bootstrapping profile and installing extensions (headless)...")
+	if err := bootstrapProfile(layout); err != nil {
 		return err
+	}
+
+	if !allExtensionsInstalled(layout) {
+		return fmt.Errorf("extension install failed: not present under Data/Default/Extensions after warmup")
 	}
 
 	fmt.Println("Profile ready")
@@ -56,7 +59,6 @@ func allExtensionsInstalled(layout bundle.Layout) bool {
 }
 
 func bootstrapProfile(layout bundle.Layout) error {
-	fmt.Println("Bootstrapping profile (headless)...")
 	browser, err := filepath.Abs(layout.BrowserExe())
 	if err != nil {
 		return fmt.Errorf("warmup: resolve chrome.exe: %w", err)
@@ -72,7 +74,7 @@ func bootstrapProfile(layout bundle.Layout) error {
 	deadline := time.Now().Add(warmupTimeout)
 	ready := false
 	for time.Now().Before(deadline) {
-		if _, err := os.Stat(prefs); err == nil {
+		if _, err := os.Stat(prefs); err == nil && allExtensionsInstalled(layout) {
 			time.Sleep(5 * time.Second)
 			ready = true
 			break
@@ -86,7 +88,10 @@ func bootstrapProfile(layout bundle.Layout) error {
 	_ = cmd.Wait()
 
 	if !ready {
-		return fmt.Errorf("warmup failed: profile not created")
+		if _, err := os.Stat(prefs); err != nil {
+			return fmt.Errorf("warmup failed: profile not created")
+		}
+		return fmt.Errorf("warmup failed: extensions not installed into profile")
 	}
 	return nil
 }
