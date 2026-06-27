@@ -5,7 +5,7 @@
  * Usage: node install.mjs <config.json>
  */
 import fs from "node:fs";
-import chromeLauncher from "chrome-launcher";
+import { launch } from "chrome-launcher";
 
 const configPath = process.argv[2];
 if (!configPath) {
@@ -20,7 +20,7 @@ if (!config.extensions?.length) {
   process.exit(0);
 }
 
-const chrome = await chromeLauncher.launch({
+const chrome = await launch({
   chromePath: config.chrome,
   chromeFlags: config.chromeArgs,
   ignoreDefaultFlags: true,
