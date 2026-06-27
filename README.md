@@ -8,10 +8,12 @@ Windows-only portable Google Chrome Stable. A small Go launcher (`Chrome.exe`) s
 ./
 ├── Chrome.exe      # Go launcher (double-click)
 ├── Chrome/         # Bundled browser (chrome.exe + DLLs)
-├── Extensions/     # CopyTables + Constellation Mix (loaded via --load-extension)
+├── Extensions/     # CopyTables + Constellation Mix (source; installed into Data/ at build time)
 │   ├── ekdpkppgmlalfkphpibadldikjimijon/
 │   └── kdnbphngjjojcnnapaegdgjpgadlhbke/
-└── Data/           # User profile (--user-data-dir, resolved at launch)
+├── Data/           # User profile
+├── cache/          # Disk / media / GPU caches
+└── crash/          # Crash dumps
 ```
 
 The portable root is always the directory that contains `Chrome.exe`.
@@ -23,19 +25,20 @@ Double-clicking `Chrome.exe`:
 1. Resolves the portable root from the launcher path (`bundle.Root`).
 2. Verifies `Chrome/chrome.exe` exists.
 3. Creates `Data/` if missing.
-4. Launches `Chrome/chrome.exe` with:
+4. Launches `Chrome/chrome.exe` with portable flags (`--user-data-dir`, cache dirs, offline-friendly options).
 
-| Flag | Purpose |
-|------|---------|
-| `--user-data-dir=<Data>` | Profile directory (absolute path, resolved at launch) |
-| `--no-default-browser-check` | Skip default-browser check |
-| `--disable-logging` | Disable logging |
-| `--disable-breakpad` | Disable crash reporting |
-| `--load-extension=Extensions/{id}` | Load CopyTables and Constellation Mix (one flag per extension) |
+Bundled extensions are **not** passed via `--load-extension` (removed in Chrome 137+). During packaging, `tools/package` installs them into `Data/Default/Extensions/` using Chrome DevTools Protocol (`Extensions.loadUnpacked` over `--remote-debugging-pipe`), the same mechanism as clicking "Load unpacked" in `chrome://extensions`.
 
-Extensions are downloaded at package time into `Extensions/` (outside `Data/`). Each launch passes `--load-extension` with absolute paths.
+| Build-time | Runtime |
+|------------|---------|
+| Download CRX → `Extensions/{id}/` | Extensions load from profile |
+| CDP install into `Data/` | No Web Store or `--load-extension` needed |
 
-Packaging happens at build time only; the launcher does not download or copy Chrome at runtime.
+Also disables sync, component update, background networking, Safe Browsing checks, and translate — suited for machines **without access to Google**.
+
+**Note:** Visiting normal websites still uses the open internet. Only Google-specific background services are reduced. Safe Browsing is off — be cautious on unknown sites.
+
+Packaging happens at build time only; the launcher does not download at runtime.
 
 ## Build & packaging
 
@@ -54,7 +57,7 @@ cmd/chrome/              Entry point → portable.Run()
 internal/
   bundle/                Portable root, layout, Chrome CLI flags
   portable/              Runtime: launch browser
-  install/               Build-time: copy Chrome, profile warmup
+  install/               Build-time: copy Chrome, CDP extension install, profile warmup
   httpclient/            Shared User-Agent (genicon)
 tools/
   genicon/               Windows icon resources (.syso)

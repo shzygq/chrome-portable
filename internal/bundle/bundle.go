@@ -6,25 +6,14 @@ import (
 	"path/filepath"
 )
 
-const Launcher = "Chrome.exe"
-
-// Root is always the directory containing Chrome.exe (the portable folder).
-func Root() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	dir, err := filepath.Abs(filepath.Dir(exe))
-	if err != nil {
-		return "", err
-	}
-	return dir, nil
-}
-
 // Layout describes files under the portable folder.
 type Layout struct {
 	Root       string
 	Data       string
+	Cache      string
+	Media      string
+	GPUCache   string
+	Crash      string
 	Browser    string
 	Extensions string
 }
@@ -39,6 +28,10 @@ func NewLayout(root string) Layout {
 	return Layout{
 		Root:       root,
 		Data:       filepath.Join(root, "Data"),
+		Cache:      filepath.Join(root, "cache"),
+		Media:      filepath.Join(root, "cache", "media"),
+		GPUCache:   filepath.Join(root, "cache", "gpu"),
+		Crash:      filepath.Join(root, "crash"),
 		Browser:    filepath.Join(root, "Chrome"),
 		Extensions: filepath.Join(root, "Extensions"),
 	}
@@ -53,7 +46,7 @@ func (l Layout) BrowserExe() string {
 }
 
 func (l Layout) EnsureDirs() error {
-	for _, dir := range []string{l.Root, l.Data, l.Browser, l.Extensions} {
+	for _, dir := range []string{l.Root, l.Data, l.Cache, l.Media, l.GPUCache, l.Crash, l.Browser, l.Extensions} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", dir, err)
 		}
@@ -62,8 +55,25 @@ func (l Layout) EnsureDirs() error {
 }
 
 func (l Layout) EnsureDataDirs() error {
-	if err := os.MkdirAll(l.Data, 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", l.Data, err)
+	for _, dir := range []string{l.Data, l.Cache, l.Media, l.GPUCache, l.Crash} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", dir, err)
+		}
 	}
 	return nil
 }
+
+// Root is always the directory containing Chrome.exe (the portable folder).
+func Root() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	dir, err := filepath.Abs(filepath.Dir(exe))
+	if err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+const Launcher = "Chrome.exe"
