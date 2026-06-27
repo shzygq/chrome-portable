@@ -151,8 +151,8 @@ try {
     console.log(`Installing extension ${ext.name} (${ext.id}) via CDP`);
     const result = await cdpCall("Extensions.loadUnpacked", { path: ext.path });
     if (result.id !== ext.id) {
-      throw new Error(
-        `install ${ext.name}: expected id ${ext.id}, got ${result.id}`,
+      console.log(
+        `Note: ${ext.name} profile id ${result.id} (Web Store id ${ext.id})`,
       );
     }
     console.log(`Installed ${ext.name} (${result.id})`);
