@@ -1,6 +1,7 @@
 /dist/
 /Data/
 /Chrome/
+node_modules/
 *.exe
 *.syso
 .DS_Store

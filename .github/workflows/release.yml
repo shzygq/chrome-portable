@@ -39,6 +39,15 @@ jobs:
           go-version: stable
           check-latest: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install extension tooling
+        shell: pwsh
+        run: npm ci
+        working-directory: tools/install-ext
+
       - name: Install Chrome
         shell: pwsh
         run: ./scripts/install-chrome.ps1

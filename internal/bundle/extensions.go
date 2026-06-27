@@ -6,8 +6,8 @@ type BundledExtension struct {
 	Name string
 }
 
-// BundledExtensions are installed into the profile at build time via external CRX
-// registration (Data/External Extensions/*.json). Chrome 137+ removed --load-extension.
+// BundledExtensions are installed into the profile at build time via Node CDP
+// (Extensions.loadUnpacked). Chrome 137+ removed --load-extension.
 var BundledExtensions = []BundledExtension{
 	{ID: "ekdpkppgmlalfkphpibadldikjimijon", Name: "copytables"},
 	{ID: "kdnbphngjjojcnnapaegdgjpgadlhbke", Name: "constellation-mix"},

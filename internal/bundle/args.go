@@ -32,7 +32,7 @@ func (l Layout) PortableFlags() []string {
 }
 
 // ChromeArgs returns flags for normal browser launch.
-// Bundled extensions are installed into the profile at build time (external CRX); Chrome 137+
+// Bundled extensions are installed into the profile at build time (Node CDP); Chrome 137+
 // removed --load-extension from branded builds.
 func (l Layout) ChromeArgs() []string {
 	return l.portableFlags()
