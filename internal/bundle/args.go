@@ -26,21 +26,9 @@ func (l Layout) portableFlags() []string {
 	}
 }
 
-// PortableFlags returns launch flags shared by runtime and build-time install.
-func (l Layout) PortableFlags() []string {
-	return l.portableFlags()
-}
-
 // ChromeArgs returns flags for normal browser launch.
-// Bundled extensions are installed into the profile at build time (Node CDP); Chrome 137+
-// removed --load-extension from branded builds.
 func (l Layout) ChromeArgs() []string {
 	return l.portableFlags()
-}
-
-// WarmupArgs is kept for compatibility; profile setup uses CDP extension install.
-func (l Layout) WarmupArgs() []string {
-	return append(l.portableFlags(), "--headless=new", "--disable-gpu", "about:blank")
 }
 
 // chromePath normalizes a filesystem path for Chrome command-line flags on Windows.

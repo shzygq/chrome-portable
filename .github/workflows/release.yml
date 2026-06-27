@@ -39,15 +39,6 @@ jobs:
           go-version: stable
           check-latest: true
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install extension tooling
-        shell: pwsh
-        run: npm ci
-        working-directory: tools/install-ext
-
       - name: Install Chrome
         shell: pwsh
         run: ./scripts/install-chrome.ps1
@@ -57,7 +48,7 @@ jobs:
         run: |
           go run ./tools/genicon
           New-Item -ItemType Directory -Force -Path $env:PACKAGE_DIR | Out-Null
-          go build -ldflags "-H=windowsgui" -o "$env:PACKAGE_DIR/Chrome.exe" ./cmd/chrome
+          go build -ldflags "-H=windowsgui -s -w" -o "$env:PACKAGE_DIR/Chrome.exe" ./cmd/chrome
           go run ./tools/package -root $env:PACKAGE_DIR
         env:
           GOARCH: ${{ matrix.goarch }}

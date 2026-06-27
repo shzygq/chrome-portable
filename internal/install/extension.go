@@ -40,9 +40,6 @@ func bundleExtension(layout bundle.Layout, ext bundle.BundledExtension, prodVers
 	if err := unpackCRX(crx, dir); err != nil {
 		return fmt.Errorf("unpack %s: %w", ext.Name, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "extension.crx"), crx, 0o644); err != nil {
-		return fmt.Errorf("write %s crx: %w", ext.Name, err)
-	}
 	if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
 		return fmt.Errorf("%s manifest.json missing after unpack", ext.Name)
 	}

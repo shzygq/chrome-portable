@@ -1,13 +1,13 @@
 package bundle
 
-// BundledExtension is shipped under Extensions/{ID}/ and installed into the profile at build time.
+// BundledExtension is shipped unpacked under Extensions/{ID}/ for manual install.
 type BundledExtension struct {
 	ID   string
 	Name string
 }
 
-// BundledExtensions are installed into the profile at build time via Node CDP
-// (Extensions.loadUnpacked). Chrome 137+ removed --load-extension.
+// BundledExtensions are downloaded at build time into Extensions/{ID}/.
+// Install them manually via chrome://extensions → Load unpacked.
 var BundledExtensions = []BundledExtension{
 	{ID: "ekdpkppgmlalfkphpibadldikjimijon", Name: "copytables"},
 	{ID: "kdnbphngjjojcnnapaegdgjpgadlhbke", Name: "constellation-mix"},

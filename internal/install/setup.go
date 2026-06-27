@@ -8,7 +8,7 @@ import (
 	"github.com/shzygq/chrome-portable/internal/bundle"
 )
 
-// Setup copies Chrome and pre-warms the profile.
+// Setup copies Chrome, bundles extensions, and trims the package for size.
 func Setup(layout bundle.Layout) error {
 	if err := layout.EnsureDirs(); err != nil {
 		return err
@@ -16,13 +16,13 @@ func Setup(layout bundle.Layout) error {
 	if err := FromLocal("", layout); err != nil {
 		return err
 	}
+	if err := TrimChrome(layout.Browser); err != nil {
+		return err
+	}
 	if err := WritePrefs(layout); err != nil {
 		return err
 	}
-	if err := BundleExtensions(layout); err != nil {
-		return err
-	}
-	return WarmupProfile(layout)
+	return BundleExtensions(layout)
 }
 
 func WritePrefs(layout bundle.Layout) error {
