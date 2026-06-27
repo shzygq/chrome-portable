@@ -11,11 +11,12 @@ import (
 )
 
 type nodeInstallConfig struct {
-	Chrome     string          `json:"chrome"`
-	ChromeDir  string          `json:"chromeDir"`
-	LogDir     string          `json:"logDir"`
-	ChromeArgs []string        `json:"chromeArgs"`
-	Extensions []nodeExtension `json:"extensions"`
+	Chrome      string          `json:"chrome"`
+	ChromeDir   string          `json:"chromeDir"`
+	LogDir      string          `json:"logDir"`
+	ResultsPath string          `json:"resultsPath"`
+	ChromeArgs  []string        `json:"chromeArgs"`
+	Extensions  []nodeExtension `json:"extensions"`
 }
 
 type nodeExtension struct {
@@ -76,11 +77,12 @@ func InstallExtensionsViaNode(layout bundle.Layout) error {
 	defer os.Remove(cfgPath)
 
 	cfg := nodeInstallConfig{
-		Chrome:     browser,
-		ChromeDir:  filepath.Dir(browser),
-		LogDir:     layout.Data,
-		ChromeArgs: args,
-		Extensions: exts,
+		Chrome:      browser,
+		ChromeDir:   filepath.Dir(browser),
+		LogDir:      layout.Data,
+		ResultsPath: extensionInstallResultsPath(layout),
+		ChromeArgs:  args,
+		Extensions:  exts,
 	}
 	if err := json.NewEncoder(cfgFile).Encode(cfg); err != nil {
 		cfgFile.Close()

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/shzygq/chrome-portable/internal/bundle"
 )
@@ -29,8 +30,17 @@ func WarmupProfile(layout bundle.Layout) error {
 		return err
 	}
 
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if allExtensionsInstalled(layout) {
+			fmt.Println("Profile ready")
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
+
 	if !allExtensionsInstalled(layout) {
-		return fmt.Errorf("extension install failed: not present under Data/Default/Extensions after CDP install")
+		return fmt.Errorf("extension install failed: missing %v", missingExtensions(layout))
 	}
 
 	fmt.Println("Profile ready")

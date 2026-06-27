@@ -16,7 +16,7 @@ if (!configPath) {
   process.exit(1);
 }
 
-/** @type {{ chrome: string, chromeDir: string, logDir: string, chromeArgs: string[], extensions: { id: string, name: string, path: string }[] }} */
+/** @type {{ chrome: string, chromeDir: string, logDir: string, resultsPath?: string, chromeArgs: string[], extensions: { id: string, name: string, path: string }[] }} */
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
 if (!config.extensions?.length) {
@@ -147,6 +147,9 @@ try {
 
   await cdpCall("Browser.getVersion");
 
+  /** @type {{ name: string, storeId: string, profileId: string }[]} */
+  const results = [];
+
   for (const ext of config.extensions) {
     console.log(`Installing extension ${ext.name} (${ext.id}) via CDP`);
     const result = await cdpCall("Extensions.loadUnpacked", { path: ext.path });
@@ -156,9 +159,27 @@ try {
       );
     }
     console.log(`Installed ${ext.name} (${result.id})`);
+    results.push({
+      name: ext.name,
+      storeId: ext.id,
+      profileId: result.id,
+    });
   }
 
-  await new Promise((r) => setTimeout(r, 3000));
+  try {
+    await cdpCall("Browser.close");
+  } catch {
+    // Best-effort graceful shutdown so profile state is flushed.
+  }
+
+  await Promise.race([
+    new Promise((r) => proc.on("exit", r)),
+    new Promise((r) => setTimeout(r, 15_000)),
+  ]);
+
+  if (config.resultsPath) {
+    fs.writeFileSync(config.resultsPath, JSON.stringify(results, null, 2));
+  }
 } catch (err) {
   console.error(err.message);
   throw err;
