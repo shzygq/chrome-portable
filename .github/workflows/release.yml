@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  actions: write
+  contents: write
+
+env:
+  PACKAGE_DIR: dist/chrome-portable
+
+jobs:
+  release:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            goarch: amd64
+            platform: win64
+          - runner: windows-11-arm
+            goarch: arm64
+            platform: win-arm64
+
+    steps:
+      - uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@main
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Install Chrome
+        shell: pwsh
+        run: ./scripts/install-chrome.ps1
+
+      - name: Build & package
+        shell: pwsh
+        run: |
+          go run ./tools/genicon
+          New-Item -ItemType Directory -Force -Path $env:PACKAGE_DIR | Out-Null
+          go build -ldflags "-H=windowsgui" -o "$env:PACKAGE_DIR/Chrome.exe" ./cmd/chrome
+          go run ./tools/package -root $env:PACKAGE_DIR
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        timeout-minutes: 30
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Get-Item "$env:PACKAGE_DIR/Chrome/chrome.exe").VersionInfo.ProductVersion
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Zip
+        id: zip
+        shell: pwsh
+        run: |
+          $zip = "dist/chrome-portable-${{ matrix.platform }}.zip"
+          Compress-Archive -Path "$env:PACKAGE_DIR/*" -DestinationPath $zip -Force
+          "path=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}-${{ matrix.platform }}"
+          $zip = "${{ steps.zip.outputs.path }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if (git tag -l $tag) {
+            gh release upload $tag $zip --clobber
+            exit 0
+          }
+
+          git tag -a $tag -m "chrome-portable ${{ steps.version.outputs.version }} (${{ matrix.platform }})"
+          git push origin $tag
+          gh release create $tag $zip --title "chrome-portable ${{ steps.version.outputs.version }} (${{ matrix.platform }})" --notes "Double-click Chrome.exe to run. All data in Data/."
+
+  cleanup-runs:
+    name: Delete all workflow runs
+    needs: release
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 0
+          delete_workflow_by_state_pattern: ALL
+          delete_run_by_conclusion_pattern: ALL

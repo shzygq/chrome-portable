@@ -1,0 +1,6 @@
+/dist/
+/Data/
+/Chrome/
+*.exe
+*.syso
+.DS_Store
