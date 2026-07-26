@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 )
 
+// WorkProfile is the portable Chrome profile directory name under Data/.
+const WorkProfile = "Work"
+
 // Layout describes files under the portable folder.
 type Layout struct {
 	Root       string
@@ -43,6 +46,11 @@ func (l Layout) ExtensionDir(id string) string {
 
 func (l Layout) BrowserExe() string {
 	return filepath.Join(l.Browser, "chrome.exe")
+}
+
+// ProfileDir is Data/Work (the default portable profile).
+func (l Layout) ProfileDir() string {
+	return filepath.Join(l.Data, WorkProfile)
 }
 
 func (l Layout) EnsureDirs() error {

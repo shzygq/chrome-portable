@@ -11,7 +11,8 @@ Windows-only portable Google Chrome Stable. A small Go launcher (`Chrome.exe`) s
 ├── Extensions/     # CopyTables + Constellation Mix (manual install, see below)
 │   ├── ekdpkppgmlalfkphpibadldikjimijon/
 │   └── kdnbphngjjojcnnapaegdgjpgadlhbke/
-├── Data/           # User profile
+├── Data/           # User data dir
+│   └── Work/       # Default profile (display name: Work)
 ├── cache/          # Disk / media / GPU caches
 └── crash/          # Crash dumps
 ```
@@ -25,9 +26,14 @@ Double-clicking `Chrome.exe`:
 1. Resolves the portable root from the launcher path (`bundle.Root`).
 2. Verifies `Chrome/chrome.exe` exists.
 3. Creates `Data/` if missing.
-4. Launches `Chrome/chrome.exe` with portable flags (`--user-data-dir`, cache dirs, offline-friendly options).
+4. **Temporarily isolates host Chrome policies** (PortableApps-style): backs up `HKCU\Software\Policies\Google\Chrome`, removes it for this session, restores when Chrome exits. `HKLM` policies are handled the same way if the launcher runs as administrator.
+5. Launches `Chrome/chrome.exe` with `--profile-directory=Work` plus portable flags. The launcher waits until Chrome closes before restoring registry keys.
 
-Also disables sync, component update, background networking, Safe Browsing checks, and translate — suited for machines **without access to Google**.
+At package time, a headless warmup creates `Data/Work` and sets its display name to **Work**.
+
+Also disables sync, component update, background networking, Safe Browsing checks, and translate — suited for machines **without access to Google**. Launch flags also reduce background-tab throttling (`--disable-renderer-backgrounding`, `--disable-background-timer-throttling`, etc.) so background tabs stay more responsive at the cost of higher CPU use.
+
+**Organization policies:** Profile data is isolated under `Data/`, but Windows registry policies (Platform) normally apply to every Chrome on the machine. This launcher hides **HKCU** policies for the portable session only, so you should not see “Managed by your organization” when policies are user-scoped. **HKLM** (machine-wide) policies still apply unless you run `Chrome.exe` as administrator. System Chrome is unchanged after you close the portable session.
 
 **Note:** Visiting normal websites still uses the open internet. Only Google-specific background services are reduced. Safe Browsing is off — be cautious on unknown sites.
 
@@ -56,7 +62,7 @@ Once loaded, extensions are stored in `Data/` and persist across launches.
 
 Requires Google Chrome on the build machine (`scripts/install-chrome.ps1` on Windows).
 
-**Size:** Packaging removes old Chrome version folders, unused locale `.pak` files (keeps en-US / zh-CN / zh-TW), and skips pre-built profile data. First launch creates `Data/`.
+**Size:** Packaging removes old Chrome version folders and unused locale `.pak` files (keeps en-US / zh-CN / zh-TW). A short headless warmup pre-creates the **Work** profile (`Data/Work`).
 
 ## Project structure
 
@@ -64,7 +70,7 @@ Requires Google Chrome on the build machine (`scripts/install-chrome.ps1` on Win
 cmd/chrome/              Entry point → portable.Run()
 internal/
   bundle/                Portable root, layout, Chrome CLI flags
-  portable/              Runtime: launch browser
+  portable/              Runtime: launch browser, isolate host policies (HKCU)
   install/               Build-time: copy Chrome, trim size, bundle extensions
   httpclient/            Shared User-Agent (genicon)
 tools/

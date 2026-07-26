@@ -10,6 +10,7 @@ import (
 )
 
 // Run starts the bundled Chrome next to Chrome.exe.
+// Host Platform policies are temporarily isolated for the session (PortableApps-style).
 func Run() error {
 	root, err := bundle.Root()
 	if err != nil {
@@ -28,7 +29,14 @@ func Run() error {
 		return err
 	}
 
+	guard := newPolicyGuard()
+	guard.Isolate()
+	defer guard.Restore()
+
 	cmd := exec.Command(browser, layout.ChromeArgs()...)
 	cmd.Dir = filepath.Dir(browser)
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Wait()
 }

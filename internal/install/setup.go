@@ -22,7 +22,10 @@ func Setup(layout bundle.Layout) error {
 	if err := WritePrefs(layout); err != nil {
 		return err
 	}
-	return BundleExtensions(layout)
+	if err := BundleExtensions(layout); err != nil {
+		return err
+	}
+	return WarmupProfile(layout)
 }
 
 func WritePrefs(layout bundle.Layout) error {

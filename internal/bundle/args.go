@@ -8,6 +8,7 @@ import (
 func (l Layout) portableFlags() []string {
 	return []string{
 		fmt.Sprintf("--user-data-dir=%s", chromePath(l.Data)),
+		fmt.Sprintf("--profile-directory=%s", WorkProfile),
 		fmt.Sprintf("--disk-cache-dir=%s", chromePath(l.Cache)),
 		fmt.Sprintf("--media-cache-dir=%s", chromePath(l.Media)),
 		fmt.Sprintf("--gpu-disk-cache-dir=%s", chromePath(l.GPUCache)),
@@ -22,13 +23,24 @@ func (l Layout) portableFlags() []string {
 		"--disable-component-update",
 		"--disable-domain-reliability",
 		"--disable-client-side-phishing-detection",
-		"--disable-features=TranslateUI",
+		"--disable-features=TranslateUI,MediaRouter,OptimizationHints,InterestFeedContentSuggestions",
+		// Less throttling for background tabs / occluded windows (uses more CPU).
+		"--disable-backgrounding-occluded-windows",
+		"--disable-renderer-backgrounding",
+		"--disable-background-timer-throttling",
+		"--disable-hang-monitor",
+		"--disable-ipc-flooding-protection",
 	}
 }
 
 // ChromeArgs returns flags for normal browser launch.
 func (l Layout) ChromeArgs() []string {
 	return l.portableFlags()
+}
+
+// WarmupArgs is used at packaging time to pre-create the profile.
+func (l Layout) WarmupArgs() []string {
+	return append(l.portableFlags(), "--headless=new", "--disable-gpu", "about:blank")
 }
 
 // chromePath normalizes a filesystem path for Chrome command-line flags on Windows.
